@@ -1,16 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  Dialog,
+  DialogContent,
+} from "@/components/ui/dialog";
+import {
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandShortcut,
+} from "@/components/ui/command";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -18,64 +26,61 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Mic, Video, Users, Brain, Briefcase, Code, Globe } from "lucide-react";
+import {
+  Mic,
+  Video,
+  Users,
+  Brain,
+  Briefcase,
+  Code,
+  Plus,
+  Search,
+  Settings,
+  LayoutDashboard,
+  Sparkles,
+  ChevronDown,
+  X,
+  Loader2,
+} from "lucide-react";
 
-const languages = [
-  {
-    id: "en",
-    name: "English",
-    description: "Interview conducted entirely in English",
-  },
-  {
-    id: "es",
-    name: "Spanish",
-    description: "Interview conducted entirely in Spanish",
-  },
-  {
-    id: "bilingual",
-    name: "Bilingual (EN/ES)",
-    description: "English with Spanish practice phrases",
-  },
+// Interview types
+const interviewTypes = [
+  { id: "technical", name: "Technical", icon: Code },
+  { id: "behavioral", name: "Behavioral", icon: Users },
+  { id: "system_design", name: "System Design", icon: Brain },
+  { id: "product", name: "Product", icon: Briefcase },
+  { id: "general", name: "General", icon: Mic },
 ];
 
-const interviewTypes = [
-  {
-    id: "technical",
-    name: "Technical Interview",
-    description: "Algorithms, data structures, and coding concepts",
-    icon: Code,
-  },
-  {
-    id: "behavioral",
-    name: "Behavioral Interview",
-    description: "STAR method, past experiences, and soft skills",
-    icon: Users,
-  },
-  {
-    id: "system_design",
-    name: "System Design",
-    description: "Architecture, scalability, and trade-offs",
-    icon: Brain,
-  },
-  {
-    id: "product",
-    name: "Product Interview",
-    description: "Product thinking, estimation, and case studies",
-    icon: Briefcase,
-  },
-  {
-    id: "general",
-    name: "General Interview",
-    description: "Mix of technical and behavioral questions",
-    icon: Mic,
-  },
+// Languages
+const languages = [
+  { id: "en", name: "English", flag: "🇺🇸" },
+  { id: "es", name: "Spanish", flag: "🇪🇸" },
+  { id: "bilingual", name: "Bilingual", flag: "🌎" },
 ];
 
 export default function DashboardPage() {
   const router = useRouter();
+  const [commandOpen, setCommandOpen] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
   const [selectedType, setSelectedType] = useState("general");
   const [selectedLanguage, setSelectedLanguage] = useState("en");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterType, setFilterType] = useState<string>("all");
   const [userId] = useState(() => `user-${Math.random().toString(36).substring(2, 9)}`);
+
+  // CMD+K handler
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        setCommandOpen((open) => !open);
+      }
+    };
+    document.addEventListener("keydown", down);
+    return () => document.removeEventListener("keydown", down);
+  }, []);
 
   const createMeeting = useMutation({
     mutationFn: async () => {
@@ -89,188 +94,382 @@ export default function DashboardPage() {
         }),
       });
 
-      if (!response.ok) {
-        throw new Error("Failed to create meeting");
-      }
-
+      if (!response.ok) throw new Error("Failed to create meeting");
       return response.json();
     },
     onSuccess: (data) => {
+      setModalOpen(false);
       router.push(`/meeting/${data.callId}?type=${selectedType}&lang=${selectedLanguage}&userId=${userId}`);
     },
   });
 
-  const selectedInterview = interviewTypes.find((t) => t.id === selectedType);
+  const handleQuickStart = useCallback((type: string) => {
+    setSelectedType(type);
+    setModalOpen(true);
+    setCommandOpen(false);
+  }, []);
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setFilterStatus("all");
+    setFilterType("all");
+  };
+
+  const hasFilters = searchQuery || filterStatus !== "all" || filterType !== "all";
+
+  // Mock recent sessions (will be from DB later)
+  const recentSessions = [
+    { id: 1, type: "technical", status: "completed", date: "Today", duration: "25 min" },
+    { id: 2, type: "behavioral", status: "completed", date: "Yesterday", duration: "30 min" },
+    { id: 3, type: "system_design", status: "completed", date: "2 days ago", duration: "45 min" },
+  ];
+
+  // Filter sessions
+  const filteredSessions = recentSessions.filter(session => {
+    if (filterStatus !== "all" && session.status !== filterStatus) return false;
+    if (filterType !== "all" && session.type !== filterType) return false;
+    if (searchQuery && !session.type.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    return true;
+  });
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-12">
-        <div className="max-w-4xl mx-auto">
-          {/* Header */}
-          <div className="text-center mb-12">
-            <h1 className="text-4xl font-bold tracking-tight mb-4">
-              AI Interview Practice
-            </h1>
-            <p className="text-xl text-muted-foreground">
-              Practice your interview skills with an AI-powered interviewer
-            </p>
-          </div>
-
-          {/* Main Card */}
-          <Card className="mb-8">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Video className="h-5 w-5" />
-                Start a Practice Session
-              </CardTitle>
-              <CardDescription>
-                Choose an interview type and begin practicing with our AI interviewer
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Interview Type Selection */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Interview Type</label>
-                <Select value={selectedType} onValueChange={setSelectedType}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select interview type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {interviewTypes.map((type) => (
-                      <SelectItem key={type.id} value={type.id}>
-                        <div className="flex items-center gap-2">
-                          <type.icon className="h-4 w-4" />
-                          {type.name}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Language Selection */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Language</label>
-                <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select language" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {languages.map((lang) => (
-                      <SelectItem key={lang.id} value={lang.id}>
-                        <div className="flex items-center gap-2">
-                          <Globe className="h-4 w-4" />
-                          {lang.name}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  {languages.find((l) => l.id === selectedLanguage)?.description}
-                </p>
-              </div>
-
-              {/* Selected Type Description */}
-              {selectedInterview && (
-                <div className="bg-muted/50 rounded-lg p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <selectedInterview.icon className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-medium">{selectedInterview.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {selectedInterview.description}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Start Button */}
-              <Button
-                size="lg"
-                className="w-full"
-                onClick={() => createMeeting.mutate()}
-                disabled={createMeeting.isPending}
-              >
-                {createMeeting.isPending ? (
-                  <>
-                    <div className="animate-spin mr-2 h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
-                    Creating Session...
-                  </>
-                ) : (
-                  <>
-                    <Video className="mr-2 h-4 w-4" />
-                    Start Practice Session
-                  </>
-                )}
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Interview Types Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div className="flex h-screen bg-background">
+      {/* Command Palette */}
+      <CommandDialog open={commandOpen} onOpenChange={setCommandOpen}>
+        <CommandInput placeholder="Type a command or search..." />
+        <CommandList>
+          <CommandEmpty>No results found.</CommandEmpty>
+          <CommandGroup heading="Quick Actions">
+            <CommandItem onSelect={() => { setModalOpen(true); setCommandOpen(false); }}>
+              <Plus className="mr-2 h-4 w-4" />
+              New Practice Session
+              <CommandShortcut>⌘N</CommandShortcut>
+            </CommandItem>
+          </CommandGroup>
+          <CommandGroup heading="Interview Types">
             {interviewTypes.map((type) => (
-              <Card
-                key={type.id}
-                className={`cursor-pointer transition-all hover:border-primary ${
-                  selectedType === type.id ? "border-primary bg-primary/5" : ""
-                }`}
-                onClick={() => setSelectedType(type.id)}
-              >
-                <CardContent className="pt-6">
-                  <div className="flex items-start gap-3">
-                    <div
-                      className={`h-10 w-10 rounded-full flex items-center justify-center ${
-                        selectedType === type.id
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted"
-                      }`}
-                    >
-                      <type.icon className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <p className="font-medium">{type.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {type.description}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              <CommandItem key={type.id} onSelect={() => handleQuickStart(type.id)}>
+                <type.icon className="mr-2 h-4 w-4" />
+                {type.name} Interview
+              </CommandItem>
             ))}
+          </CommandGroup>
+          <CommandGroup heading="Navigation">
+            <CommandItem>
+              <Settings className="mr-2 h-4 w-4" />
+              Settings
+            </CommandItem>
+          </CommandGroup>
+        </CommandList>
+      </CommandDialog>
+
+      {/* Meeting Setup Modal */}
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        <DialogContent className="sm:max-w-sm p-0 gap-0">
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-3 border-b">
+            <h2 className="font-medium">New Session</h2>
+            <button
+              onClick={() => setModalOpen(false)}
+              className="h-6 w-6 rounded-sm hover:bg-muted flex items-center justify-center"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
 
-          {/* Tips Section */}
-          <Card className="mt-8">
-            <CardHeader>
-              <CardTitle className="text-lg">Tips for Your Practice Session</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li className="flex items-start gap-2">
-                  <Mic className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                  <span>Speak clearly and at a natural pace</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Video className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                  <span>Ensure good lighting and a quiet environment</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Brain className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                  <span>Take your time to think before answering</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Users className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                  <span>Treat it like a real interview for best results</span>
-                </li>
-              </ul>
-            </CardContent>
-          </Card>
+          {/* Search */}
+          <div className="px-4 py-3 border-b">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search options..."
+                className="pl-9 h-9"
+              />
+            </div>
+          </div>
+
+          {/* Selected Tags */}
+          <div className="px-4 py-3 border-b flex flex-wrap gap-2">
+            {/* Selected Type */}
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-foreground text-background text-xs font-medium">
+              {interviewTypes.find(t => t.id === selectedType)?.name}
+              <button
+                onClick={() => setSelectedType("general")}
+                className="hover:bg-white/20 rounded-sm"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+            {/* Selected Language */}
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-foreground text-background text-xs font-medium">
+              {languages.find(l => l.id === selectedLanguage)?.flag} {languages.find(l => l.id === selectedLanguage)?.name}
+              <button
+                onClick={() => setSelectedLanguage("en")}
+                className="hover:bg-white/20 rounded-sm"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          </div>
+
+          {/* Options List */}
+          <div className="max-h-64 overflow-y-auto">
+            {/* Interview Types Section */}
+            <div className="px-4 py-2">
+              <p className="text-xs font-medium text-muted-foreground mb-2">Interview Type</p>
+              <div className="space-y-1">
+                {interviewTypes.map((type) => (
+                  <button
+                    key={type.id}
+                    onClick={() => setSelectedType(type.id)}
+                    className="w-full flex items-center gap-3 px-2 py-2 rounded-md hover:bg-muted transition-colors"
+                  >
+                    <div className={`h-4 w-4 rounded border-2 flex items-center justify-center ${
+                      selectedType === type.id
+                        ? "bg-primary border-primary"
+                        : "border-muted-foreground/30"
+                    }`}>
+                      {selectedType === type.id && (
+                        <svg className="h-3 w-3 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </div>
+                    <type.icon className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm flex-1 text-left">{type.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Languages Section */}
+            <div className="px-4 py-2 border-t">
+              <p className="text-xs font-medium text-muted-foreground mb-2">Language</p>
+              <div className="space-y-1">
+                {languages.map((lang) => (
+                  <button
+                    key={lang.id}
+                    onClick={() => setSelectedLanguage(lang.id)}
+                    className="w-full flex items-center gap-3 px-2 py-2 rounded-md hover:bg-muted transition-colors"
+                  >
+                    <div className={`h-4 w-4 rounded border-2 flex items-center justify-center ${
+                      selectedLanguage === lang.id
+                        ? "bg-primary border-primary"
+                        : "border-muted-foreground/30"
+                    }`}>
+                      {selectedLanguage === lang.id && (
+                        <svg className="h-3 w-3 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </div>
+                    <span className="text-base">{lang.flag}</span>
+                    <span className="text-sm flex-1 text-left">{lang.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="px-4 py-3 border-t">
+            <Button
+              className="w-full"
+              onClick={() => createMeeting.mutate()}
+              disabled={createMeeting.isPending}
+            >
+              {createMeeting.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Starting...
+                </>
+              ) : (
+                <>
+                  <Video className="mr-2 h-4 w-4" />
+                  Start Session
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Sidebar */}
+      <aside className="w-56 bg-sidebar text-sidebar-foreground flex flex-col">
+        {/* Logo */}
+        <div className="p-4 flex items-center gap-2">
+          <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
+            <Sparkles className="h-5 w-5 text-primary-foreground" />
+          </div>
+          <span className="font-semibold text-lg">SkillBridge</span>
         </div>
-      </div>
+
+        {/* Navigation */}
+        <nav className="flex-1 px-3 py-2">
+          <div className="space-y-1">
+            <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg bg-sidebar-accent text-sidebar-accent-foreground">
+              <LayoutDashboard className="h-4 w-4" />
+              <span className="text-sm font-medium">Sessions</span>
+            </button>
+            <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors">
+              <Settings className="h-4 w-4" />
+              <span className="text-sm font-medium">Settings</span>
+            </button>
+          </div>
+        </nav>
+
+        {/* Usage Card */}
+        <div className="px-3 pb-3">
+          <div className="p-4 rounded-lg bg-sidebar-accent">
+            <div className="flex items-center gap-2 mb-3">
+              <Sparkles className="h-4 w-4 text-primary" />
+              <span className="text-sm font-medium">Free Trial</span>
+            </div>
+            <div className="space-y-2">
+              <div>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-sidebar-muted">Sessions</span>
+                  <span>3/10</span>
+                </div>
+                <div className="h-1.5 bg-sidebar-border rounded-full overflow-hidden">
+                  <div className="h-full w-[30%] bg-primary rounded-full" />
+                </div>
+              </div>
+            </div>
+            <Button size="sm" variant="outline" className="w-full mt-3 border-sidebar-border text-sidebar-foreground hover:bg-sidebar-border">
+              Upgrade
+            </Button>
+          </div>
+        </div>
+
+        {/* User Profile */}
+        <div className="p-3 border-t border-sidebar-border">
+          <button className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-sidebar-accent transition-colors">
+            <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-sm font-medium">
+              JD
+            </div>
+            <div className="flex-1 text-left">
+              <p className="text-sm font-medium">John Doe</p>
+              <p className="text-xs text-sidebar-muted">john@example.com</p>
+            </div>
+            <ChevronDown className="h-4 w-4 text-sidebar-muted" />
+          </button>
+        </div>
+      </aside>
+
+      {/* Main Content */}
+      <main className="flex-1 flex flex-col overflow-hidden">
+        {/* Top Bar */}
+        <header className="h-14 border-b bg-card flex items-center px-4 gap-4">
+          <button
+            onClick={() => setCommandOpen(true)}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-muted/50 hover:bg-muted transition-colors text-sm text-muted-foreground w-64"
+          >
+            <Search className="h-4 w-4" />
+            <span className="flex-1 text-left">Search</span>
+            <kbd className="hidden sm:inline-flex h-5 items-center gap-1 rounded border bg-background px-1.5 font-mono text-xs">
+              ⌘K
+            </kbd>
+          </button>
+        </header>
+
+        {/* Content Area */}
+        <div className="flex-1 overflow-auto p-6">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-6">
+            <h1 className="text-2xl font-semibold">My Sessions</h1>
+            <Button onClick={() => setModalOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              New Meeting
+            </Button>
+          </div>
+
+          {/* Filters */}
+          <div className="flex items-center gap-3 mb-6">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search sessions..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 w-48"
+              />
+            </div>
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <SelectTrigger className="w-32">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="in_progress">In Progress</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filterType} onValueChange={setFilterType}>
+              <SelectTrigger className="w-36">
+                <SelectValue placeholder="Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                {interviewTypes.map((type) => (
+                  <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {hasFilters && (
+              <Button variant="ghost" size="sm" onClick={clearFilters} className="text-muted-foreground">
+                <X className="mr-1 h-4 w-4" />
+                Clear
+              </Button>
+            )}
+          </div>
+
+          {/* Sessions Grid */}
+          {filteredSessions.length === 0 ? (
+            <Card className="border-dashed">
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-4">
+                  <Video className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <h3 className="font-medium mb-1">No sessions found</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  {hasFilters ? "Try adjusting your filters" : "Start your first practice session"}
+                </p>
+                {!hasFilters && (
+                  <Button onClick={() => setModalOpen(true)}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    New Meeting
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {filteredSessions.map((session) => {
+                const typeInfo = interviewTypes.find((t) => t.id === session.type);
+                return (
+                  <Card key={session.id} className="cursor-pointer hover:border-primary/50 transition-all hover:shadow-sm">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                          {typeInfo && <typeInfo.icon className="h-5 w-5 text-primary" />}
+                        </div>
+                        <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700 capitalize">
+                          {session.status.replace("_", " ")}
+                        </span>
+                      </div>
+                      <p className="font-medium capitalize">{session.type.replace("_", " ")} Interview</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {session.date} · {session.duration}
+                      </p>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </main>
     </div>
   );
 }
